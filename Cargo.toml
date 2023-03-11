@@ -1,0 +1,16 @@
+[package]
+name = "aci_diplom"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "3.2.2"
+diesel = { version = "1.4.4", features = ["postgres", "r2d2", "uuidv07", "chrono"] }
+log = "0.4.14"
+env_logger = "0.9.0"
+diesel_migrations = "1.4.0"
+dotenv = "0.15.0"
+r2d2 = "0.8.8"
+r2d2-diesel = "1.0.0"
