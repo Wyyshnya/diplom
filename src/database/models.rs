@@ -101,35 +101,6 @@ impl Teacher {
             None
         }
     }
-    // Нижняя часть нужна, чтобы вносить элемент в бд
-    // pub fn create(username: Option<&str>, password: Option<&str>, conn: &PgConnection) -> Option<Self> {
-    //     let new_id = Uuid::new_v4().to_hyphenated().to_string();
-    //
-    //     if username.is_some() {
-    //         if let Some(user) = Self::by_username(&username.unwrap(), conn) {
-    //             return Some(user)
-    //         }
-    //     }
-    //
-    //     let new_user = Self::new_user_struct(&new_id, username, password);
-    //
-    //     diesel::insert_into(user_dsl)
-    //         .values(&new_user)
-    //         .execute(conn)
-    //         .expect("Error saving new user");
-    //     Self::by_id(&new_id, conn)
-    // }
-    //
-    // fn new_user_struct(id: &str, username: Option<&str>, password: Option<&str>) -> Self {
-    //     User {
-    //         id: id.into(),
-    //         username: username.map(Into::into),
-    //         password: password.map(Into::into),
-    //         phone: None,
-    //         email: None,
-    //         avatar: None,
-    //     }
-    // }
 }
 
 
@@ -165,35 +136,6 @@ impl Worker {
             None
         }
     }
-    // Нижняя часть нужна, чтобы вносить элемент в бд
-    // pub fn create(username: Option<&str>, password: Option<&str>, conn: &PgConnection) -> Option<Self> {
-    //     let new_id = Uuid::new_v4().to_hyphenated().to_string();
-    //
-    //     if username.is_some() {
-    //         if let Some(user) = Self::by_username(&username.unwrap(), conn) {
-    //             return Some(user)
-    //         }
-    //     }
-    //
-    //     let new_user = Self::new_user_struct(&new_id, username, password);
-    //
-    //     diesel::insert_into(user_dsl)
-    //         .values(&new_user)
-    //         .execute(conn)
-    //         .expect("Error saving new user");
-    //     Self::by_id(&new_id, conn)
-    // }
-    //
-    // fn new_user_struct(id: &str, username: Option<&str>, password: Option<&str>) -> Self {
-    //     User {
-    //         id: id.into(),
-    //         username: username.map(Into::into),
-    //         password: password.map(Into::into),
-    //         phone: None,
-    //         email: None,
-    //         avatar: None,
-    //     }
-    // }
 }
 
 // #[derive(Debug, Deserialize, Serialize, Queryable, Insertable)]
