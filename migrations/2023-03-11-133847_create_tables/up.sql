@@ -91,7 +91,7 @@ CREATE TABLE IF NOT EXISTS chats (
   title VARCHAR(255)
 );
 
-CREATE TABLE IF NOT EXISTS content (
+CREATE TABLE IF NOT EXISTS content_message (
   id SERIAL PRIMARY KEY,
   content TEXT,
   type_content TEXT
@@ -103,7 +103,7 @@ CREATE TABLE IF NOT EXISTS messages (
   sender_type VARCHAR(255) NOT NULL,
   sender_id integer,
   date_send TIMESTAMP,
-  content_id integer REFERENCES content(id)
+  content_id integer REFERENCES content_message(id)
 );
 
 CREATE TABLE IF NOT EXISTS p_to_p (

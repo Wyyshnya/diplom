@@ -3,7 +3,7 @@ DROP TABLE IF EXISTS messages;
 DROP TABLE IF EXISTS p_to_p;
 DROP TABLE IF EXISTS t_to_g;
 DROP TABLE IF EXISTS users_many;
-DROP TABLE IF EXISTS content;
+DROP TABLE IF EXISTS content_message;
 DROP TABLE IF EXISTS group_subject;
 DROP TABLE IF EXISTS teacher_subject;
 DROP TABLE IF EXISTS teacher_department;

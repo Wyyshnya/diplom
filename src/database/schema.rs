@@ -18,7 +18,7 @@ diesel::table! {
 }
 
 diesel::table! {
-    content (id) {
+    content_message (id) {
         id -> Int4,
         content -> Nullable<Text>,
         type_content -> Nullable<Text>,
@@ -162,7 +162,7 @@ diesel::joinable!(group_subject -> groups (group_id));
 diesel::joinable!(group_subject -> subjects (subject_id));
 diesel::joinable!(groups -> departments (department_id));
 diesel::joinable!(messages -> chats (chat_id));
-diesel::joinable!(messages -> content (content_id));
+diesel::joinable!(messages -> content_message (content_id));
 diesel::joinable!(p_to_p -> chats (chat_id));
 diesel::joinable!(students -> groups (group_id));
 diesel::joinable!(subjects -> departments (department_id));
@@ -179,7 +179,7 @@ diesel::joinable!(workers -> sections (section_id));
 diesel::allow_tables_to_appear_in_same_query!(
     administration,
     chats,
-    content,
+    content_message,
     deaneries,
     departments,
     group_subject,
