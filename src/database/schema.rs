@@ -20,8 +20,8 @@ diesel::table! {
 diesel::table! {
     content_message (id) {
         id -> Int4,
-        content -> Nullable<Text>,
-        type_content -> Nullable<Text>,
+        content -> Text,
+        type_content -> Text,
     }
 }
 
@@ -38,15 +38,15 @@ diesel::table! {
         id -> Int4,
         number -> Varchar,
         name -> Varchar,
-        deanery_id -> Nullable<Int4>,
+        deanery_id -> Int4,
     }
 }
 
 diesel::table! {
     group_subject (id) {
         id -> Int4,
-        group_id -> Nullable<Int4>,
-        subject_id -> Nullable<Int4>,
+        group_id -> Int4,
+        subject_id -> Int4,
     }
 }
 
@@ -54,25 +54,25 @@ diesel::table! {
     groups (id) {
         id -> Int4,
         number -> Varchar,
-        department_id -> Nullable<Int4>,
+        department_id -> Int4,
     }
 }
 
 diesel::table! {
     messages (id) {
         id -> Int4,
-        chat_id -> Nullable<Int4>,
+        chat_id -> Int4,
         sender_type -> Varchar,
-        sender_id -> Nullable<Int4>,
-        date_send -> Nullable<Timestamp>,
-        content_id -> Nullable<Int4>,
+        sender_id -> Int4,
+        date_send -> Timestamp,
+        content_id -> Int4,
     }
 }
 
 diesel::table! {
     p_to_p (id) {
         id -> Int4,
-        chat_id -> Nullable<Int4>,
+        chat_id -> Int4,
         user_id -> Int4,
         type_user -> Varchar,
     }
@@ -91,7 +91,7 @@ diesel::table! {
         fio -> Varchar,
         email -> Varchar,
         phone -> Varchar,
-        group_id -> Nullable<Int4>,
+        group_id -> Int4,
     }
 }
 
@@ -99,32 +99,32 @@ diesel::table! {
     subjects (id) {
         id -> Int4,
         name -> Varchar,
-        department_id -> Nullable<Int4>,
+        department_id -> Int4,
     }
 }
 
 diesel::table! {
     t_to_g (id) {
         id -> Int4,
-        chat_id -> Nullable<Int4>,
-        admin -> Nullable<Int4>,
-        group_id -> Nullable<Int4>,
+        chat_id -> Int4,
+        admin -> Int4,
+        group_id -> Int4,
     }
 }
 
 diesel::table! {
     teacher_department (id) {
         id -> Int4,
-        teacher_id -> Nullable<Int4>,
-        department_id -> Nullable<Int4>,
+        teacher_id -> Int4,
+        department_id -> Int4,
     }
 }
 
 diesel::table! {
     teacher_subject (id) {
         id -> Int4,
-        teacher_id -> Nullable<Int4>,
-        subject_id -> Nullable<Int4>,
+        teacher_id -> Int4,
+        subject_id -> Int4,
     }
 }
 
@@ -140,7 +140,7 @@ diesel::table! {
 diesel::table! {
     users_many (id) {
         id -> Int4,
-        chat_id -> Nullable<Int4>,
+        chat_id -> Int4,
         user_id -> Int4,
         type_user -> Varchar,
     }
@@ -153,7 +153,7 @@ diesel::table! {
         email -> Varchar,
         phone -> Varchar,
         position_office -> Varchar,
-        section_id -> Nullable<Int4>,
+        section_id -> Int4,
     }
 }
 

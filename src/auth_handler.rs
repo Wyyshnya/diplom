@@ -14,11 +14,22 @@ use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation}
 use crate::database::schema::workers::section_id;
 use crate::structs::Token;
 
-
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AuthUser {
     pub auth_student: Option<AuthStudent>,
     pub auth_teacher: Option<AuthTeacher>,
-    pub auth_worker: Option<AuthWorker>
+    pub auth_worker: Option<AuthWorker>,
+}
+
+impl AuthUser {
+    pub fn new(auth_student: Option<AuthStudent>, auth_teacher: Option<AuthTeacher>,
+               auth_worker: Option<AuthWorker>) -> Self {
+        Self {
+            auth_student,
+            auth_teacher,
+            auth_worker
+        }
+    }
 }
 
 
@@ -34,7 +45,7 @@ pub struct AuthStudent {
 
 impl AuthStudent {
     pub fn new(student_id: i32, student_fio: String, student_email: String, student_phone: String,
-    student_group_id: i32) -> Self {
+               student_group_id: i32) -> Self {
         Self {
             student_id,
             student_fio,
@@ -99,7 +110,6 @@ impl AuthWorker {
 
 pub async fn login(id: Identity, email: &str, type_lk: &str,
                    conn: PooledConnection<ConnectionManager<PgConnection>>) -> HttpResponse {
-    // Validate that the email + hashed password matches
     let mut auth_user = AuthUser::new(None, None, None);
     match type_lk {
         "student" => {
@@ -107,12 +117,12 @@ pub async fn login(id: Identity, email: &str, type_lk: &str,
                 Some(student) => {
                     let auth_student = AuthStudent::new(
                         student.id, student.fio, student.email,
-                    student.phone, student.group_id);
+                        student.phone, student.group_id);
                     auth_user = AuthUser::new(
-                        auth_student, None, None
+                        Some(auth_student), None, None,
                     );
-                    }
-                _ => HttpResponse::InternalServerError().json("User doesn't exists")
+                }
+                _ => ()
             }
         }
         "teacher" => {
@@ -120,12 +130,12 @@ pub async fn login(id: Identity, email: &str, type_lk: &str,
                 Some(teacher) => {
                     let auth_teacher = AuthTeacher::new(
                         teacher.id, teacher.fio, teacher.email,
-                    teacher.phone);
+                        teacher.phone);
                     auth_user = AuthUser::new(
-                        None, auth_teacher, None
+                        None, Some(auth_teacher), None,
                     );
-                    }
-                _ => HttpResponse::InternalServerError().json("User doesn't exists")
+                }
+                _ => ()
             }
         }
         "worker" => {
@@ -133,15 +143,16 @@ pub async fn login(id: Identity, email: &str, type_lk: &str,
                 Some(worker) => {
                     let auth_worker = AuthWorker::new(
                         worker.id, worker.fio, worker.email,
-                    worker.phone, worker.position_office, worker.section_id);
+                        worker.phone, worker.position_office, worker.section_id);
                     auth_user = AuthUser::new(
-                        None, None, auth_worker
+                        None, None, Some(auth_worker),
                     );
-                    }
-                _ => HttpResponse::InternalServerError().json("User doesn't exists")
+                }
+                _ => ()
             }
         }
-        _ => HttpResponse::InternalServerError().json("User doesn't exists")
+        // _ => HttpResponse::InternalServerError().json("User doesn't exists")
+        _ => ()
     }
     let token = create_jwt(auth_user);
     let tok = Token { token: token.as_ref().unwrap().to_string() };

@@ -47,7 +47,7 @@ impl MessageApp {
     }
 }
 
-#[post("api/sign_in")]
+// #[post("api/sign_in")]
 async fn signin(id: Identity, req: HttpRequest, data: web::Json<AuthData>, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let email = &*data.email;

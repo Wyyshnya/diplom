@@ -2,7 +2,7 @@ use diesel::{Insertable, Queryable};
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
 use diesel::prelude::*;
-use super::schema::{students};
+use super::schema::{students, teachers, workers};
 use super::schema::students::dsl::students as student_dsl;
 use super::schema::teachers::dsl::teachers as teacher_dsl;
 use super::schema::workers::dsl::workers as worker_dsl;
@@ -82,7 +82,7 @@ pub struct Teacher {
 
 impl Teacher {
     pub fn list(conn: &PgConnection) -> Vec<Self> {
-        student_dsl.load::<Teacher>(conn).expect("Error loading users")
+        teacher_dsl.load::<Teacher>(conn).expect("Error loading users")
     }
 
     pub fn by_id(id: &i32, conn: &PgConnection) -> Option<Self> {
