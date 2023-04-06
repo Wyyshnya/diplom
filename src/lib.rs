@@ -12,6 +12,7 @@ use actix_cors::Cors;
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{App, http, HttpRequest, HttpResponse, HttpServer, web};
 use crate::database::DbPool;
+use crate::database::models::Chats;
 use crate::structs::AuthData;
 
 pub struct MessageApp {
@@ -40,6 +41,7 @@ impl MessageApp {
                           .name("auth-cookie")
                           .secure(false))).wrap(cors)
                 .route("/api/sign_in", web::post().to(signin))
+                .route("/api/conversations/{id}", web::get().to(conversations))
                 // .service(signin)
         })
         .bind(("127.0.0.1", self.port))?
@@ -51,33 +53,32 @@ impl MessageApp {
 async fn signin(id: Identity, req: HttpRequest, data: web::Json<AuthData>, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let email = &*data.email;
-    let type_lk = &*data.type_lk;
-    auth_handler::login(id, email, type_lk, conn).await
+    auth_handler::login(id, email, conn).await
 }
 
-//
+
 // #[get("api/conversations/{id}")]
-// async fn conversations(req: HttpRequest, pool: web::Data<db_pool>) -> HttpResponse {
-//     let id: String = req.match_info().get("id").unwrap().parse().unwrap();
-//     let conn = pool.get().unwrap();
-//     let user = auth_handler::decode_jwt(&id).unwrap();
-//     let ids = db::models::UsersChats::by_id(user.user_id, &conn);
-//     let mut chats = vec![];
-//     let mut contents = vec![];
-//     for i in ids.unwrap() {
-//         chats.push(db::models::Chats::by_id(i.chat_id, &conn).unwrap());
-//         let mut id = db::models::Messages::by_id(i.chat_id, &conn).unwrap();
-//         match id.pop() {
-//             Some(i) => {
-//                 let content = db::models::MessageContent::by_id(i.content_id.unwrap(), &conn);
-//                 contents.push(content.unwrap().content.unwrap());
-//             },
-//             None => contents.push("None".to_string())
-//         }
-//     };
-//     let send = SendChats {item: chats, last_messages: contents};
-//     HttpResponse::Ok().json(send)
-// }
+async fn conversations(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
+    let id: String = req.match_info().get("id").unwrap().parse().unwrap();
+    let conn = pool.get().unwrap();
+    let user = auth_handler::decode_jwt(&id).unwrap();
+    let ids = database::models::UsersChats::by_id(user.id, &conn);
+    let mut chats = vec![];
+    let mut contents = vec![];
+    for i in ids.unwrap() {
+        chats.push(database::models::Chats::by_id(i.chat_id, &conn).unwrap());
+        let mut id = database::models::Messages::by_id(i.chat_id, &conn).unwrap();
+        match id.pop() {
+            Some(i) => {
+                let content = database::models::MessageContent::by_id(i.content_id, &conn);
+                contents.push(content.unwrap().content);
+            },
+            None => contents.push("None".to_string())
+        }
+    };
+    let send = structs::SendChats {item: chats, last_messages: contents};
+    HttpResponse::Ok().json(send)
+}
 
 // #[get("api/messages/{id}")]
 // async fn messages(req: HttpRequest, pool: web::Data<db_pool>) -> HttpResponse {
