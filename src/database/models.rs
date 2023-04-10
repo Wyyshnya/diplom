@@ -27,6 +27,15 @@ impl User {
         users_dsl.load::<User>(conn).expect("Error loading users")
     }
 
+    pub fn by_name(name: &String, conn: &PgConnection) -> Option<Vec<User>> {
+        use super::schema::users::dsl::fio;
+        if let Ok(record) = users_dsl.filter(fio.ilike(format!("%{}%", name))).get_results::<User>(conn) {
+            Some(record)
+        } else {
+            None
+        }
+    }
+
     pub fn by_id(id: &i32, conn: &PgConnection) -> Option<Self> {
         if let Ok(record) = users_dsl.find(id).get_result::<User>(conn) {
             Some(record)
@@ -196,9 +205,9 @@ impl MessageContent {
         }
     }
 
-    pub fn push(content: String,  type_content: String, conn: &PgConnection) {
+    pub fn push(content: &String,  type_content: String, conn: &PgConnection) {
 
-        let message = Self::new_message_content(content, type_content);
+        let message = Self::new_message_content(content.to_string(), type_content);
 
         diesel::insert_into(content_messages_dsl)
             .values(&message)

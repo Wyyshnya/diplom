@@ -50,7 +50,7 @@ pub async fn login(id: Identity, email: &str,
                    conn: PooledConnection<ConnectionManager<PgConnection>>) -> HttpResponse {
     match models::User::by_email(email, &conn) {
         Some(user) => {
-            let mut role;
+            let role;
             if user.is_teacher {
                 role = "teacher".to_string();
             }
