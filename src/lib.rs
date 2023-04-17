@@ -8,9 +8,13 @@ extern crate diesel_migrations;
 extern crate diesel;
 
 
+use std::fs;
+use std::io::Write;
 use actix_cors::Cors;
+use actix_multipart::{Field, Multipart};
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
-use actix_web::{App, http, HttpRequest, HttpResponse, HttpServer, web};
+use actix_web::{App, Error, http, HttpRequest, HttpResponse, HttpServer, web};
+use futures::{StreamExt, TryStreamExt};
 use crate::database::DbPool;
 use crate::database::models::Chats;
 use crate::structs::AuthData;
@@ -48,7 +52,10 @@ impl MessageApp {
                 .route("api/get_chat_name/{id_chat}", web::get().to(get_chat_name))
                 .route("api/add_conversation", web::post().to(add_conv))
                 .route("api/get_by_name", web::post().to(get_by_name))
+                .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
                 // .service(signin)
+                // .wrap(actix_web::middleware::Logger::default()) // добавляем логгер
+                // .wrap(actix_web::middleware::NormalizePath::default()) // добавляем нормализатор пути
         })
         .bind(("127.0.0.1", self.port))?
         .workers(8).run().await
@@ -122,6 +129,40 @@ async fn message_post(req: HttpRequest, data: web::Json<structs::PostData>, pool
     let mut last_id = database::models::MessageContent::list(&conn);
     database::models::Messages::push(id, user.unwrap().id,
                                chrono::Local::now().naive_local(), last_id.pop().unwrap().id, &conn);
+    HttpResponse::Ok().json("successful")
+}
+
+// async fn message_probe(mut payload: web::Payload) -> HttpResponse {
+//     let mut file = fs::File::create("./file.png").unwrap();
+//     while let Some(chunk) = payload.next().await {
+//         let data = chunk.unwrap();
+//         println!("{:?}", data);
+//         file.write_all(&data).unwrap();
+//     }
+//     HttpResponse::Ok().finish()
+// }
+
+async fn message_probe(mut payload: Multipart) -> HttpResponse {
+    // Пройдемся по каждому полю формы
+    while let Some(field) = payload.next().await {
+        // Получим имя поля и содержимое
+        println!("{:?}", field);
+        let mut field = field.unwrap();
+        let content_type = field.content_disposition().unwrap();
+        let filename = content_type.get_filename().unwrap();
+
+        // Сохраняем файл на диск
+        let filepath = format!("/home/wyyshnya/RustProjects/aci_diplom/{}", filename);
+        let mut f = web::block(|| fs::File::create(filepath))
+            .await.unwrap();
+
+        while let Some(chunk) = field.next().await {
+            let data = chunk.unwrap();
+            f = web::block(move || f.write_all(&data).map(|_| f))
+                .await
+                .unwrap();
+        }
+    }
     HttpResponse::Ok().json("successful")
 }
 
