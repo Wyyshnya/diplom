@@ -28,7 +28,7 @@ impl MessageApp {
 
         MessageApp { port }
     }
-
+    //TODO сделать профили пользователей, доделать выпадающий список для создания чата
     pub async fn run(&self) -> std::io::Result<()> {
         let conn_pool = database::establish_connection();
         println!("Starting http server: my_ip:{}", self.port);
@@ -52,7 +52,8 @@ impl MessageApp {
                 .route("api/get_chat_name/{id_chat}", web::get().to(get_chat_name))
                 .route("api/add_conversation", web::post().to(add_conv))
                 .route("api/get_by_name", web::post().to(get_by_name))
-                .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
+                .route("api/get_profile/{id}", web::get().to(get_profile))
+                // .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
                 // .service(signin)
                 // .wrap(actix_web::middleware::Logger::default()) // добавляем логгер
                 // .wrap(actix_web::middleware::NormalizePath::default()) // добавляем нормализатор пути
@@ -121,49 +122,68 @@ async fn decoding(req: HttpRequest, data: web::Json<structs::Token>) -> HttpResp
 }
 
 // #[post("api/message_post/{id}")]
-async fn message_post(req: HttpRequest, data: web::Json<structs::PostData>, pool: web::Data<DbPool>) -> HttpResponse {
-    let conn = pool.get().unwrap();
-    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
-    let user = auth_handler::decode_jwt(&data.id_user);
-    database::models::MessageContent::push(&data.message, "text".to_string(), &conn);
-    let mut last_id = database::models::MessageContent::list(&conn);
-    database::models::Messages::push(id, user.unwrap().id,
-                               chrono::Local::now().naive_local(), last_id.pop().unwrap().id, &conn);
-    HttpResponse::Ok().json("successful")
-}
-
-// async fn message_probe(mut payload: web::Payload) -> HttpResponse {
-//     let mut file = fs::File::create("./file.png").unwrap();
-//     while let Some(chunk) = payload.next().await {
-//         let data = chunk.unwrap();
-//         println!("{:?}", data);
-//         file.write_all(&data).unwrap();
-//     }
-//     HttpResponse::Ok().finish()
+// async fn message_post(req: HttpRequest, data: web::Json<structs::PostData>, pool: web::Data<DbPool>) -> HttpResponse {
+//     let conn = pool.get().unwrap();
+//     let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+//     let user = auth_handler::decode_jwt(&data.id_user);
+//     database::models::MessageContent::push(&data.message, "text".to_string(), &conn);
+//     let mut last_id = database::models::MessageContent::list(&conn);
+//     database::models::Messages::push(id, user.unwrap().id,
+//                                chrono::Local::now().naive_local(), last_id.pop().unwrap().id, &conn);
+//     HttpResponse::Ok().json("successful")
 // }
 
-async fn message_probe(mut payload: Multipart) -> HttpResponse {
-    // Пройдемся по каждому полю формы
-    while let Some(field) = payload.next().await {
-        // Получим имя поля и содержимое
-        println!("{:?}", field);
-        let mut field = field.unwrap();
-        let content_type = field.content_disposition().unwrap();
-        let filename = content_type.get_filename().unwrap();
+async fn message_post(req: HttpRequest, mut payload: Multipart, pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
+    // Обрабатываем поля формы
+    let conn = pool.get().unwrap();
+    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+    let mut user;
+    while let Some(item) = payload.next().await {
+        let mut field = item?;
 
-        // Сохраняем файл на диск
-        let filepath = format!("/home/wyyshnya/RustProjects/aci_diplom/{}", filename);
-        let mut f = web::block(|| fs::File::create(filepath))
-            .await.unwrap();
+        let content_disposition = field.content_disposition().unwrap();
+        let name = content_disposition.get_name().unwrap().to_string();
 
-        while let Some(chunk) = field.next().await {
-            let data = chunk.unwrap();
-            f = web::block(move || f.write_all(&data).map(|_| f))
-                .await
-                .unwrap();
+        match content_disposition.get_filename() {
+            Some(filename) => {
+                // Если поле - файл, обрабатываем его асинхронно
+                let filepath = format!("/home/wyyshnya/RustProjects/aci_diplom/{}", filename);
+                let mut f = web::block(|| fs::File::create(filepath))
+                    .await.unwrap();
+
+                while let Some(chunk) = field.next().await {
+                    let data = chunk.unwrap();
+                    f = web::block(move || f.write_all(&data).map(|_| f))
+                        .await
+                        .unwrap();
+                }
+            }
+            None => {
+                // Если это обычное поле формы
+                let value = field
+                    .map_ok(|bytes| bytes.to_vec())
+                    .try_concat()
+                    .await
+                    .unwrap();
+                let string_value = String::from_utf8_lossy(&value).to_string();
+                if name == "id_user".to_string() {
+                    user = auth_handler::decode_jwt(&string_value);
+                    let field_ = payload.next().await.unwrap()?;
+                    let value = field_
+                        .map_ok(|bytes| bytes.to_vec())
+                        .try_concat()
+                        .await
+                        .unwrap();
+                    let string_value = String::from_utf8_lossy(&value).to_string();
+                    database::models::MessageContent::push(&string_value, "text".to_string(), &conn);
+                    let mut last_id = database::models::MessageContent::list(&conn);
+                    database::models::Messages::push(id, user.unwrap().id,
+                                chrono::Local::now().naive_local(), last_id.pop().unwrap().id, &conn);
+                }
+            }
         }
     }
-    HttpResponse::Ok().json("successful")
+    Ok(HttpResponse::Ok().into())
 }
 
 ////TODO axios-cache-adapter
@@ -201,3 +221,12 @@ async fn get_by_name(req: HttpRequest, data: web::Json<structs::SearchNames>, po
 //     Chats::upd(&data.chat_name, &data.chat_id, &conn);
 //     HttpResponse::Ok().json("successful")
 // }
+
+async fn get_profile(req: HttpRequest,  pool: web::Data<DbPool>) -> HttpResponse {
+    let conn = pool.get().unwrap();
+    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+    println!("{:?}", id);
+    let user = database::models::User::by_id(&id, &conn).unwrap();
+
+    HttpResponse::Ok().json(user)
+}

@@ -30,12 +30,6 @@ pub struct Message {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct PostData {
-    pub message: String,
-    pub id_user: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct TitleChat {
     pub title_chat: String,
 }
