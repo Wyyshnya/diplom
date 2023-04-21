@@ -1,13 +1,13 @@
 use diesel::{Insertable, Queryable};
 use serde::{Deserialize, Serialize};
 use diesel::prelude::*;
-use super::schema::{users, users_chats, chats, messages, content_message};
+use super::schema::{users, users_chats, chats, messages, content_message, groups};
 use super::schema::users::dsl::users as users_dsl;
 use super::schema::users_chats::dsl::users_chats as users_chats_dsl;
 use super::schema::chats::dsl::chats as chats_dsl;
 use super::schema::messages::dsl::messages as messages_dsl;
 use super::schema::content_message::dsl::content_message as content_messages_dsl;
-
+use super::schema::groups::dsl::groups as groups_dsl;
 
 
 #[derive(Debug, Deserialize, Serialize, Queryable, Insertable)]
@@ -278,3 +278,52 @@ impl Messages {
     }
 }
 
+
+#[derive(Debug, Deserialize, Serialize, Queryable, Insertable)]
+#[table_name = "groups" ]
+pub struct Groups {
+    id: i32,
+    pub number: String,
+    pub deanery_id: i32
+}
+
+#[derive(Debug, Serialize, Insertable)]
+#[table_name = "groups" ]
+pub struct Groups1 {
+    id: Option<i32>,
+    pub number: String,
+    pub deanery_id: i32
+}
+
+impl Groups {
+     pub fn list(conn: &PgConnection) -> Vec<Self> {
+        groups_dsl.load::<Groups>(conn).expect("Error loading users")
+    }
+
+    pub fn by_id(id: i32, conn: &PgConnection) -> Option<Self> {
+        if let Ok(record) = groups_dsl.filter(groups::id.eq(id)).get_result::<Groups>(conn) {
+            Some(record)
+        } else {
+            None
+        }
+    }
+
+    pub fn add(number: String, deanery_id: i32, conn: &PgConnection) {
+
+        let making = Self::new_group(number, deanery_id);
+
+        diesel::insert_into(groups_dsl)
+            .values(&making)
+            .execute(conn)
+            .expect("Error saving new user");
+
+    }
+
+    fn new_group(number: String, deanery_id: i32) -> Groups1 {
+        Groups1 {
+            id: None,
+            number,
+            deanery_id
+        }
+    }
+}

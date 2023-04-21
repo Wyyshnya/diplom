@@ -53,6 +53,7 @@ impl MessageApp {
                 .route("api/add_conversation", web::post().to(add_conv))
                 .route("api/get_by_name", web::post().to(get_by_name))
                 .route("api/get_profile/{id}", web::get().to(get_profile))
+                .route("api/get_group_by_id/{id}", web::get().to(get_group_by_id))
                 // .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
                 // .service(signin)
                 // .wrap(actix_web::middleware::Logger::default()) // добавляем логгер
@@ -225,8 +226,16 @@ async fn get_by_name(req: HttpRequest, data: web::Json<structs::SearchNames>, po
 async fn get_profile(req: HttpRequest,  pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
-    println!("{:?}", id);
     let user = database::models::User::by_id(&id, &conn).unwrap();
 
     HttpResponse::Ok().json(user)
 }
+
+async fn get_group_by_id(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
+    let conn = pool.get().unwrap();
+    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+    let user = database::models::Groups::by_id(id, &conn).unwrap();
+
+    HttpResponse::Ok().json(user)
+}
+
