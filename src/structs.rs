@@ -50,3 +50,9 @@ pub struct SearchNames {
 pub struct ListUsers {
     pub user_comp: Vec<User>,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Timesheet {
+    pub type_search: String,
+    pub number: String,
+}

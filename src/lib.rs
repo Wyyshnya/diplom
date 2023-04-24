@@ -14,10 +14,13 @@ use actix_cors::Cors;
 use actix_multipart::{Field, Multipart};
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
 use actix_web::{App, Error, http, HttpRequest, HttpResponse, HttpServer, web};
-use futures::{StreamExt, TryStreamExt};
+use futures::{StreamExt, TryFutureExt, TryStreamExt};
 use crate::database::DbPool;
 use crate::database::models::Chats;
-use crate::structs::AuthData;
+use crate::structs::{AuthData};
+use reqwest;
+use scraper::{Html, Selector};
+use tokio;
 
 pub struct MessageApp {
     port: u16,
@@ -28,7 +31,6 @@ impl MessageApp {
 
         MessageApp { port }
     }
-    //TODO сделать профили пользователей, доделать выпадающий список для создания чата
     pub async fn run(&self) -> std::io::Result<()> {
         let conn_pool = database::establish_connection();
         println!("Starting http server: my_ip:{}", self.port);
@@ -47,13 +49,16 @@ impl MessageApp {
                 .route("/api/sign_in", web::post().to(signin))
                 .route("/api/conversations/{id}", web::get().to(conversations))
                 .route("api/messages/{id}", web::get().to(messages))
+                .route("api/messages_discussion/{id}", web::get().to(messages_discussion))
                 .route("api/decode_jwt", web::post().to(decoding))
                 .route("api/message_post/{id}", web::post().to(message_post))
+                .route("api/message_post_discussion/{id}", web::post().to(message_post_discussion))
                 .route("api/get_chat_name/{id_chat}", web::get().to(get_chat_name))
                 .route("api/add_conversation", web::post().to(add_conv))
                 .route("api/get_by_name", web::post().to(get_by_name))
                 .route("api/get_profile/{id}", web::get().to(get_profile))
                 .route("api/get_group_by_id/{id}", web::get().to(get_group_by_id))
+                .route("api/get_timesheet", web::post().to(get_timesheet))
                 // .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
                 // .service(signin)
                 // .wrap(actix_web::middleware::Logger::default()) // добавляем логгер
@@ -65,7 +70,7 @@ impl MessageApp {
 }
 
 // #[post("api/sign_in")]
-async fn signin(id: Identity, req: HttpRequest, data: web::Json<AuthData>, pool: web::Data<DbPool>) -> HttpResponse {
+async fn signin(id: Identity, _req: HttpRequest, data: web::Json<AuthData>, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let email = &*data.email;
     auth_handler::login(id, email, conn).await
@@ -81,8 +86,8 @@ async fn conversations(req: HttpRequest, pool: web::Data<DbPool>) -> HttpRespons
     let mut chats = vec![];
     let mut contents = vec![];
     for i in ids.unwrap() {
-        chats.push(database::models::Chats::by_id(i.chat_id, &conn).unwrap());
-        let mut id = database::models::Messages::by_id(i.chat_id, &conn).unwrap();
+        chats.push(Chats::by_id(i.chat_id, &conn).unwrap());
+        let mut id = database::models::Messages::by_id_chat(i.chat_id, &conn).unwrap();
         match id.pop() {
             Some(i) => {
                 let content = database::models::MessageContent::by_id(i.content_id, &conn);
@@ -100,7 +105,27 @@ async fn messages(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
     // println!("{:?}", &req.headers().get("authorization"));
     let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
     let conn = pool.get().unwrap();
-    let messages = database::models::Messages::by_id(id, &conn).unwrap();
+    let messages = database::models::Messages::by_id_chat(id, &conn).unwrap();
+    let mut send = vec![];
+    for message in &messages {
+        let content = database::models::MessageContent::by_id(message.content_id, &conn).unwrap();
+        let mess = structs::Message {
+            id: message.id,
+            sender_id: message.sender_id,
+            date_send: message.date_send,
+            content,
+        };
+        send.push(mess);
+    }
+    // let send = SendChats {item: chats};
+    HttpResponse::Ok().json(send)
+}
+
+async fn messages_discussion(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
+    // println!("{:?}", &req.headers().get("authorization"));
+    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+    let conn = pool.get().unwrap();
+    let messages = database::models::Messages::by_id_discussion(id, &conn).unwrap();
     let mut send = vec![];
     for message in &messages {
         let content = database::models::MessageContent::by_id(message.content_id, &conn).unwrap();
@@ -117,7 +142,7 @@ async fn messages(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
 }
 
 // #[post("api/decode_jwt")]
-async fn decoding(req: HttpRequest, data: web::Json<structs::Token>) -> HttpResponse {
+async fn decoding(_req: HttpRequest, data: web::Json<structs::Token>) -> HttpResponse {
     let user = auth_handler::decode_jwt(&data.token);
     HttpResponse::Ok().json(user.unwrap())
 }
@@ -187,12 +212,65 @@ async fn message_post(req: HttpRequest, mut payload: Multipart, pool: web::Data<
     Ok(HttpResponse::Ok().into())
 }
 
-////TODO axios-cache-adapter
+async fn message_post_discussion(req: HttpRequest, mut payload: Multipart, pool: web::Data<DbPool>) -> Result<HttpResponse, Error> {
+    // Обрабатываем поля формы
+    let conn = pool.get().unwrap();
+    let id: i32 = req.match_info().get("id").unwrap().parse().unwrap();
+    let mut user;
+    while let Some(item) = payload.next().await {
+        let mut field = item?;
+
+        let content_disposition = field.content_disposition().unwrap();
+        let name = content_disposition.get_name().unwrap().to_string();
+
+        match content_disposition.get_filename() {
+            Some(filename) => {
+                // Если поле - файл, обрабатываем его асинхронно
+                let filepath = format!("/home/wyyshnya/RustProjects/aci_diplom/{}", filename);
+                let mut f = web::block(|| fs::File::create(filepath))
+                    .await.unwrap();
+
+                while let Some(chunk) = field.next().await {
+                    let data = chunk.unwrap();
+                    f = web::block(move || f.write_all(&data).map(|_| f))
+                        .await
+                        .unwrap();
+                }
+            }
+            None => {
+                // Если это обычное поле формы
+                let value = field
+                    .map_ok(|bytes| bytes.to_vec())
+                    .try_concat()
+                    .await
+                    .unwrap();
+                let string_value = String::from_utf8_lossy(&value).to_string();
+                if name == "id_user".to_string() {
+                    user = auth_handler::decode_jwt(&string_value);
+                    let field_ = payload.next().await.unwrap()?;
+                    let value = field_
+                        .map_ok(|bytes| bytes.to_vec())
+                        .try_concat()
+                        .await
+                        .unwrap();
+                    let string_value = String::from_utf8_lossy(&value).to_string();
+                    database::models::MessageContent::push(&string_value, "text".to_string(), &conn);
+                    let mut last_id = database::models::MessageContent::list(&conn);
+                    database::models::Messages::push_discussion(id, user.unwrap().id,
+                                chrono::Local::now().naive_local(), last_id.pop().unwrap().id, &conn);
+                }
+            }
+        }
+    }
+    Ok(HttpResponse::Ok().into())
+}
+
+
 // #[get("api/get_chat_name/{id_chat}")]
 async fn get_chat_name(req: HttpRequest, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let id_chat = req.match_info().get("id_chat").unwrap().parse().unwrap();
-    let chat_name = database::models::Chats::by_id(id_chat, &conn).unwrap();
+    let chat_name = Chats::by_id(id_chat, &conn).unwrap();
     let title = structs::TitleChat {title_chat:chat_name.title};
     HttpResponse::Ok().json(title)
 }
@@ -200,7 +278,7 @@ async fn get_chat_name(req: HttpRequest, pool: web::Data<DbPool>) -> HttpRespons
 // #[post("api/add_conversation")]
 //TODO сделать выбор с кем создать чат, ЕСЛИ студент - со студентами и преподом,
 // ЕСЛИ препод - чат с группой. В общем и целом - сделать выборку из бд.
-async fn add_conv(req: HttpRequest, data: web::Json<structs::ConvData>, pool: web::Data<DbPool>) -> HttpResponse {
+async fn add_conv(_req: HttpRequest, data: web::Json<structs::ConvData>, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let user = auth_handler::decode_jwt(&data.user_token).unwrap();
     Chats::create(&data.chat_name, true, &conn);
@@ -209,7 +287,7 @@ async fn add_conv(req: HttpRequest, data: web::Json<structs::ConvData>, pool: we
     HttpResponse::Ok().json("successful")
 }
 
-async fn get_by_name(req: HttpRequest, data: web::Json<structs::SearchNames>, pool: web::Data<DbPool>) -> HttpResponse {
+async fn get_by_name(_req: HttpRequest, data: web::Json<structs::SearchNames>, pool: web::Data<DbPool>) -> HttpResponse {
     let conn = pool.get().unwrap();
     let user_list = database::models::User::by_name(&data.name, &conn);
 
@@ -239,3 +317,105 @@ async fn get_group_by_id(req: HttpRequest, pool: web::Data<DbPool>) -> HttpRespo
     HttpResponse::Ok().json(user)
 }
 
+#[tokio::main]
+async fn get_timesheet(req: HttpRequest, data: web::Json<structs::Timesheet>, pool: web::Data<DbPool>) -> HttpResponse {
+    let mut url = "https://guap.ru/rasp/".to_string();
+    let response = reqwest::get(&url).await;
+    let body = response.unwrap().text().await;
+    let mut value = "-1";
+
+    let type_search = data.type_search.as_str();
+
+    match type_search {
+        "g" => {
+            println!("g");
+            let document = Html::parse_document(&body.unwrap());
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl05']").unwrap();
+            for select in document.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(&data.number) {
+                        value = option.value().attr("value").unwrap();
+                        url = "https://guap.ru/rasp/?g=".to_owned() + value;
+                    }
+                }
+            }
+        }
+        "p" => {
+            println!("p");
+            let document = Html::parse_document(&body.unwrap());
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl06']").unwrap();
+            for select in document.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(&data.number) {
+                        value = option.value().attr("value").unwrap();
+                        url = "https://guap.ru/rasp/?p=".to_owned() + value;
+                    }
+                }
+            }
+        }
+        "b" => {
+            println!("b");
+            let document = Html::parse_document(&body.unwrap());
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl07']").unwrap();
+            for select in document.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(&data.number) {
+                        value = option.value().attr("value").unwrap();
+                        url = "https://guap.ru/rasp/?b=".to_owned() + value;
+                    }
+                }
+            }
+        }
+        "r" => {
+            println!("r");
+            let document = Html::parse_document(&body.unwrap());
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl08']").unwrap();
+            for select in document.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(&data.number) {
+                        value = option.value().attr("value").unwrap();
+                        url = "https://guap.ru/rasp/?r=".to_owned() + value;
+                    }
+                }
+            }
+        }
+        "br" => {
+            println!("br");
+            let parts = &data.number.split(", ").collect::<Vec<&str>>();
+            let document = Html::parse_document(&body.unwrap());
+            let document2 = document.clone();
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl07']").unwrap();
+            for select in document.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(parts[0]) {
+                        value = option.value().attr("value").unwrap();
+                        url = "https://guap.ru/rasp/?b=".to_owned() + value;
+                    }
+                }
+            }
+            let selector = Selector::parse("select[name='ctl00$cphMain$ctl08']").unwrap();
+            for select in document2.select(&selector) {
+                for option in select.select(&Selector::parse("option").unwrap()) {
+                    if option.text().collect::<String>().contains(parts[1]) {
+                        value = option.value().attr("value").unwrap();
+                        url = url + "&r=";
+                        url = url + value;
+                    }
+                }
+            }
+        }
+        _ => {
+
+        }
+    }
+
+    let response = reqwest::get(url).await;
+    let body = response.unwrap().text().await;
+
+    let document = Html::parse_document(&body.unwrap());
+    let selector = Selector::parse(r#"div[class="result"]"#).unwrap();
+    let title_element = document.select(&selector).next().unwrap();
+    let title_text = title_element.text().collect::<String>();
+    println!("{:?}", title_text);
+    HttpResponse::Ok().json("ssssss")
+}

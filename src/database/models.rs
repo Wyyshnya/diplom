@@ -228,7 +228,8 @@ impl MessageContent {
 #[table_name = "messages"]
 pub struct Messages {
     pub id: i32,
-    pub chat_id: i32,
+    pub chat_id: Option<i32>,
+    pub discussion_id: Option<i32>,
     pub sender_id: i32,
     pub date_send: chrono::NaiveDateTime,
     pub content_id: i32
@@ -243,13 +244,30 @@ pub struct Messages1 {
     content_id: i32
 }
 
+#[derive(Debug, Serialize, Insertable)]
+#[table_name = "messages"]
+pub struct Messages2 {
+    discussion_id: i32,
+    sender_id: i32,
+    date_send: chrono::NaiveDateTime,
+    content_id: i32
+}
+
 impl Messages {
      pub fn list(conn: &PgConnection) -> Vec<Self> {
         messages_dsl.load::<Messages>(conn).expect("Error loading users")
     }
 
-    pub fn by_id(id: i32, conn: &PgConnection) -> Option<Vec<Self>> {
+    pub fn by_id_chat(id: i32, conn: &PgConnection) -> Option<Vec<Self>> {
         if let Ok(record) = messages_dsl.filter(super::schema::messages::chat_id.eq(id)).get_results::<Messages>(conn) {
+            Some(record)
+        } else {
+            None
+        }
+    }
+
+    pub fn by_id_discussion(id: i32, conn: &PgConnection) -> Option<Vec<Self>> {
+        if let Ok(record) = messages_dsl.filter(super::schema::messages::discussion_id.eq(id)).get_results::<Messages>(conn) {
             Some(record)
         } else {
             None
@@ -276,6 +294,27 @@ impl Messages {
             content_id
         }
     }
+
+    pub fn push_discussion(discussion_id: i32, sender_id: i32, date_send: chrono::NaiveDateTime, content_id: i32, conn: &PgConnection) {
+
+        let message = Self::new_message_discussion(discussion_id, sender_id, date_send, content_id);
+
+        diesel::insert_into(messages_dsl)
+            .values(&message)
+            .execute(conn)
+            .expect("Error saving new user");
+
+    }
+
+    fn new_message_discussion(discussion_id: i32, sender_id: i32, date_send: chrono::NaiveDateTime, content_id: i32,) -> Messages2 {
+        Messages2 {
+            discussion_id,
+            sender_id,
+            date_send,
+            content_id
+        }
+    }
+
 }
 
 

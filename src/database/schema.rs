@@ -25,6 +25,12 @@ diesel::table! {
 }
 
 diesel::table! {
+    discussions (id) {
+        id -> Int4,
+    }
+}
+
+diesel::table! {
     group_subject (id) {
         id -> Int4,
         group_id -> Int4,
@@ -43,7 +49,8 @@ diesel::table! {
 diesel::table! {
     messages (id) {
         id -> Int4,
-        chat_id -> Int4,
+        chat_id -> Nullable<Int4>,
+        discussion_id -> Nullable<Int4>,
         sender_id -> Int4,
         date_send -> Timestamp,
         content_id -> Int4,
@@ -98,6 +105,7 @@ diesel::joinable!(group_subject -> subjects (subject_id));
 diesel::joinable!(groups -> deaneries (deanery_id));
 diesel::joinable!(messages -> chats (chat_id));
 diesel::joinable!(messages -> content_message (content_id));
+diesel::joinable!(messages -> discussions (discussion_id));
 diesel::joinable!(messages -> users (sender_id));
 diesel::joinable!(subjects -> deaneries (deanery_id));
 diesel::joinable!(teacher_subject -> subjects (subject_id));
@@ -110,6 +118,7 @@ diesel::allow_tables_to_appear_in_same_query!(
     chats,
     content_message,
     deaneries,
+    discussions,
     group_subject,
     groups,
     messages,

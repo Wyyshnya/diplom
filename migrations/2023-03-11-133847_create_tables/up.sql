@@ -59,9 +59,14 @@ CREATE TABLE IF NOT EXISTS content_message (
   type_content TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS discussions (
+  id SERIAL PRIMARY KEY
+);
+
 CREATE TABLE IF NOT EXISTS messages (
   id SERIAL PRIMARY KEY,
-  chat_id integer REFERENCES chats(id) NOT NULL,
+  chat_id integer REFERENCES chats(id),
+  discussion_id integer REFERENCES discussions(id),
   sender_id integer REFERENCES users(id) NOT NULL,
   date_send TIMESTAMP NOT NULL,
   content_id integer REFERENCES content_message(id) NOT NULL
