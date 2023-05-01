@@ -9,7 +9,8 @@ members = [
     "wasm_client",
     "signalling-server",
     "shared-protocol",
-    "turn-server"
+    "turn-server",
+    "google_calendar_conn"
 ]
 
 [dependencies]
