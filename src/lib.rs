@@ -13,7 +13,7 @@ use std::io::Write;
 use actix_cors::Cors;
 use actix_multipart::{Field, Multipart};
 use actix_identity::{CookieIdentityPolicy, Identity, IdentityService};
-use actix_web::{App, Error, http, HttpRequest, HttpResponse, HttpServer, web};
+use actix_web::{App, client, Error, http, HttpRequest, HttpResponse, HttpServer, web};
 use futures::{StreamExt, TryFutureExt, TryStreamExt};
 use crate::database::DbPool;
 use crate::database::models::Chats;
@@ -21,6 +21,8 @@ use crate::structs::{AuthData};
 use reqwest;
 use scraper::{Html, Selector};
 use tokio;
+use conn_google_calendar::{auth, get_list_of_events, insert_event_lib};
+
 
 pub struct MessageApp {
     port: u16,
@@ -59,6 +61,9 @@ impl MessageApp {
                 .route("api/get_profile/{id}", web::get().to(get_profile))
                 .route("api/get_group_by_id/{id}", web::get().to(get_group_by_id))
                 .route("api/get_timesheet", web::post().to(get_timesheet))
+                .route("api/auth_in_google_calendar", web::post().to(auth_in_google_calendar))
+                .route("api/insert_event", web::post().to(insert_event))
+                .route("api/get_list_events", web::post().to(get_list_events))
                 // .service(web::resource("api/message_probe").route(web::post().to(message_probe)))
                 // .service(signin)
                 // .wrap(actix_web::middleware::Logger::default()) // добавляем логгер
@@ -317,8 +322,27 @@ async fn get_group_by_id(req: HttpRequest, pool: web::Data<DbPool>) -> HttpRespo
     HttpResponse::Ok().json(user)
 }
 
+async fn auth_in_google_calendar() -> HttpResponse {
+    let token = auth();
+    // Можно его сохранять в бд, либо на фронте
+
+    HttpResponse::Ok().json(token)
+}
+
+async fn insert_event(data: web::Json<structs::ForEvent>) -> HttpResponse {
+    insert_event_lib(&data.token, &data.event);
+
+    HttpResponse::Ok().json("success")
+}
+
+async fn get_list_events(data: web::Json<structs::ForEvent>) -> HttpResponse {
+    let res = get_list_of_events(&data.token);
+
+    HttpResponse::Ok().json(res)
+}
+
 #[tokio::main]
-async fn get_timesheet(req: HttpRequest, data: web::Json<structs::Timesheet>, pool: web::Data<DbPool>) -> HttpResponse {
+async fn get_timesheet(data: web::Json<structs::Timesheet>) -> HttpResponse {
     let mut url = "https://guap.ru/rasp/".to_string();
     let response = reqwest::get(&url).await;
     let body = response.unwrap().text().await;
@@ -419,3 +443,5 @@ async fn get_timesheet(req: HttpRequest, data: web::Json<structs::Timesheet>, po
     println!("{:?}", title_text);
     HttpResponse::Ok().json("ssssss")
 }
+
+

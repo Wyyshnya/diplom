@@ -1,3 +1,5 @@
+use google_calendar::Client;
+use google_calendar::types::Event;
 use serde::{Deserialize, Serialize};
 use crate::Chats;
 use crate::database::models;
@@ -55,4 +57,15 @@ pub struct ListUsers {
 pub struct Timesheet {
     pub type_search: String,
     pub number: String,
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ForEvent {
+    pub token: String,
+    pub event: Event
+}
+
+pub struct GoogleClient {
+    pub client: Client,
 }
